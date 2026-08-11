@@ -57,6 +57,11 @@ Config.Notifications = {
 --   moveOnRespawn
 --   moveLocations
 --
+-- Loot amounts can be fixed or randomized.
+-- Fixed:    { item = 'bread', amount = 5 }
+-- Random:   { item = 'bread', amount = { min = 2, max = 8 } }
+-- Each loot entry rolls independently every time the chest is successfully opened.
+--
 -- moveOnLoot = true makes the chest move immediately after a successful loot.
 -- moveOnRespawn = true makes the chest move when its respawn timer finishes.
 -- Set moveOnLoot = false and moveOnRespawn = true to move only on respawn.
@@ -97,9 +102,8 @@ Config.Chests = {
 
         -- Loot ONLY for this chest
         loot = {
-            { item = 'Bread', amount = 2 },
-            { item = 'revival_syringe', amount = 1 },
-            { item = 'goldnugget', amount = 3 },
+            { item = 'revival_syringe', amount = { min = 1, max = 2 } },
+            { item = 'goldnugget', amount = { min = 1, max = 5 } },
         },
 
         -- Minutes before this chest can be looted again.
@@ -118,31 +122,11 @@ Config.Chests = {
         consumeKey = false,
 
         loot = {
-            { item = 'red_sage', amount = 5 },
-            { item = 'Feather', amount = 3 },
-            { item = 'magic_powder', amount = 2 },
+            { item = 'red_sage', amount = { min = 2, max = 8 } },
+            { item = 'magic_powder', amount = { min = 1, max = 4 } },
         },
 
-        respawnMinutes = 120,
-    },
-
-    -- Example Chest #3
-    ['Chest_3'] = {
-        coords = vector4(-3572.17, -3573.81, 47.92, 270.00),
-
-        prop = 'p_chest01x',
-
-        key = 'Chest3_key',
-
-        consumeKey = true,
-
-        loot = {
-            { item = 'ammo_revolver', amount = 20 },
-            { item = 'bread', amount = 5 },
-            { item = 'water', amount = 5 },
-        },
-
-        respawnMinutes = 120,
+        respawnMinutes = 60,
     },
 
     -- Add as many chests as you want:
