@@ -17,7 +17,7 @@ Chest locations, props, keys, loot, key consumption, and respawn timers are all 
 Put the folder in your resources directory:
 
 ```text
-resources/[deadtrails]/enchanted_acres_loot_chests
+resources/enchanted_acres_loot_chests
 ```
 
 Then add:
