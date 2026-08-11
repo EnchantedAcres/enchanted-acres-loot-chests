@@ -12,7 +12,7 @@ local function debugPrint(message)
     end
 end
 
-local function sendDiscordLog(src, chestId, chest, success, reason)
+local function sendDiscordLog(src, chestId, chest, success, reason, awardedLoot)
     if not Config.Webhook or not Config.Webhook.Enabled or Config.Webhook.URL == '' then
         return
     end
@@ -20,8 +20,12 @@ local function sendDiscordLog(src, chestId, chest, success, reason)
     local playerName = GetPlayerName(src) or ('Player %s'):format(src)
     local loot = {}
 
-    for _, reward in ipairs(chest.loot or {}) do
-        loot[#loot + 1] = ('`%s` x%s'):format(tostring(reward.item), tostring(reward.amount))
+    for _, reward in ipairs(awardedLoot or chest.loot or {}) do
+        local amount = reward.amount
+        if type(amount) == 'table' then
+            amount = ('%s-%s'):format(tostring(amount.min or 0), tostring(amount.max or amount.min or 0))
+        end
+        loot[#loot + 1] = ('`%s` x%s'):format(tostring(reward.item), tostring(amount))
     end
 
     local payload = {
@@ -227,35 +231,72 @@ local function removeItem(src, item, amount)
     return result == true
 end
 
+local function rollLootAmount(amountConfig)
+    if type(amountConfig) == 'number' then
+        return math.max(0, math.floor(amountConfig))
+    end
+
+    if type(amountConfig) == 'table' then
+        local min = tonumber(amountConfig.min or amountConfig[1] or 0) or 0
+        local max = tonumber(amountConfig.max or amountConfig[2] or min) or min
+
+        min = math.max(0, math.floor(min))
+        max = math.max(min, math.floor(max))
+
+        if max <= min then
+            return min
+        end
+
+        return math.random(min, max)
+    end
+
+    return 0
+end
+
+local function buildRolledLoot(chest)
+    local rolledLoot = {}
+
+    for _, reward in ipairs(chest.loot or {}) do
+        local item = tostring(reward.item or '')
+        local amount = rollLootAmount(reward.amount)
+
+        if item ~= '' and amount > 0 then
+            rolledLoot[#rolledLoot + 1] = {
+                item = item,
+                amount = amount,
+            }
+        end
+    end
+
+    return rolledLoot
+end
+
 local function giveLoot(src, chest)
-    -- First check that all loot can fit.
-    for _, reward in ipairs(chest.loot or {}) do
-        local item = tostring(reward.item or '')
-        local amount = tonumber(reward.amount or 0) or 0
+    local rolledLoot = buildRolledLoot(chest)
 
-        if item ~= '' and amount > 0 then
-            if not canCarry(src, item, amount) then
-                notify(src, Config.Notifications.InventoryFull)
-                return false
-            end
+    if #rolledLoot == 0 then
+        notify(src, Config.Notifications.Empty)
+        return false, nil
+    end
+
+    -- First check that all rolled loot can fit.
+    for _, reward in ipairs(rolledLoot) do
+        if not canCarry(src, reward.item, reward.amount) then
+            notify(src, Config.Notifications.InventoryFull)
+            return false, nil
         end
     end
 
-    -- Give all loot.
-    for _, reward in ipairs(chest.loot or {}) do
-        local item = tostring(reward.item or '')
-        local amount = tonumber(reward.amount or 0) or 0
-
-        if item ~= '' and amount > 0 then
-            if not addItem(src, item, amount) then
-                debugPrint(('Could not add %sx %s to player %s.'):format(amount, item, src))
-                notify(src, Config.Notifications.InventoryFull)
-                return false
-            end
+    -- Give the exact amounts that were rolled above.
+    for _, reward in ipairs(rolledLoot) do
+        if not addItem(src, reward.item, reward.amount) then
+            debugPrint(('Could not add %sx %s to player %s.'):format(reward.amount, reward.item, src))
+            notify(src, Config.Notifications.InventoryFull)
+            return false, nil
         end
     end
 
-    return true
+    return true, rolledLoot
 end
 
 RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
@@ -330,7 +371,9 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
         end
     end
 
-    if not giveLoot(src, chest) then
+    local lootSuccess, awardedLoot = giveLoot(src, chest)
+
+    if not lootSuccess then
         state.opened = false
 
         if chest.consumeKey then
@@ -368,7 +411,7 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
             true,
             ('All configured loot was successfully delivered. Chest moved to %.2f, %.2f, %.2f.'):format(
                 moveCoords.x, moveCoords.y, moveCoords.z
-            )
+            ), awardedLoot
         )
 
         debugPrint(('Player %s opened chest %s. It moved to %.2f, %.2f, %.2f.'):format(
@@ -431,7 +474,7 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
     )
 
     notify(src, Config.Notifications.Opened)
-    sendDiscordLog(src, chestId, chest, true, 'All configured loot was successfully delivered.')
+    sendDiscordLog(src, chestId, chest, true, 'Randomized loot was successfully delivered.', awardedLoot)
     debugPrint(('Player %s opened chest %s.'):format(src, chestId))
 end)
 
