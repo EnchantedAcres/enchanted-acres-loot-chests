@@ -114,6 +114,21 @@ RegisterNetEvent('enchanted_acres_loot_chests:updateOpened', function(chestId, o
     end
 end)
 
+RegisterNetEvent('enchanted_acres_loot_chests:updateLocation', function(chestId, x, y, z, heading, opened)
+    local chest = Chests[chestId]
+    if not chest then return end
+
+    deleteChestObject(chestId)
+
+    chest.x = x
+    chest.y = y
+    chest.z = z
+    chest.heading = heading or 0.0
+    chest.opened = opened == true
+
+    spawnChest(chest)
+end)
+
 RegisterNetEvent('enchanted_acres_loot_chests:notify', function(message)
     TriggerEvent('vorp:TipRight', message, 4000)
 end)
