@@ -4,6 +4,8 @@ local VORPcore = exports.vorp_core:GetCore()
 -- Because all chest definitions live in config.lua, no SQL/database is required.
 local ChestState = {}
 
+math.randomseed(os.time())
+
 local function debugPrint(message)
     if Config.Debug then
         print(('[enchanted_acres_loot_chests] %s'):format(message))
@@ -66,16 +68,25 @@ local function isAdmin(src)
     return IsPlayerAceAllowed(src, Config.AdminAce)
 end
 
+local function getCurrentCoords(id, chest)
+    local state = ChestState[id]
+    if state and state.coords then
+        return state.coords
+    end
+    return chest.coords
+end
+
 local function buildChestList()
     local result = {}
 
     for id, chest in pairs(Config.Chests) do
+        local coords = getCurrentCoords(id, chest)
         result[#result + 1] = {
             id = id,
-            x = chest.coords.x,
-            y = chest.coords.y,
-            z = chest.coords.z,
-            heading = chest.coords.w,
+            x = coords.x,
+            y = coords.y,
+            z = coords.z,
+            heading = coords.w,
             prop = chest.prop,
         }
     end
@@ -83,15 +94,45 @@ local function buildChestList()
     return result
 end
 
+local function chooseMoveLocation(id, chest)
+    if not chest.moveOnLoot and not chest.moveOnRespawn then return nil end
+
+    local locations = chest.moveLocations
+    if type(locations) ~= 'table' or #locations == 0 then return nil end
+
+    local current = getCurrentCoords(id, chest)
+    local candidates = {}
+
+    for _, coords in ipairs(locations) do
+        if coords and (
+            math.abs(coords.x - current.x) > 0.01 or
+            math.abs(coords.y - current.y) > 0.01 or
+            math.abs(coords.z - current.z) > 0.01
+        ) then
+            candidates[#candidates + 1] = coords
+        end
+    end
+
+    if #candidates == 0 then
+        for _, coords in ipairs(locations) do
+            if coords then candidates[#candidates + 1] = coords end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+    return candidates[math.random(1, #candidates)]
+end
+
 local function syncAllChests(target)
     TriggerClientEvent('enchanted_acres_loot_chests:receiveChests', target or -1, buildChestList())
 end
 
 CreateThread(function()
-    for id in pairs(Config.Chests) do
+    for id, chest in pairs(Config.Chests) do
         ChestState[id] = {
             opened = false,
             nextReset = 0,
+            coords = chest.coords,
         }
     end
 
@@ -232,6 +273,7 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
         state = {
             opened = false,
             nextReset = 0,
+            coords = chest.coords,
         }
         ChestState[chestId] = state
     end
@@ -249,7 +291,8 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
     end
 
     local playerCoords = GetEntityCoords(ped)
-    local chestCoords = vector3(chest.coords.x, chest.coords.y, chest.coords.z)
+    local currentCoords = getCurrentCoords(chestId, chest)
+    local chestCoords = vector3(currentCoords.x, currentCoords.y, currentCoords.z)
     local distance = #(playerCoords - chestCoords)
 
     if distance > (Config.InteractDistance + 1.0) then
@@ -298,32 +341,97 @@ RegisterNetEvent('enchanted_acres_loot_chests:open', function(chestId)
         return
     end
 
+    -- Move immediately only when explicitly configured to do so.
+    local moveCoords = chest.moveOnLoot and chooseMoveLocation(chestId, chest) or nil
+
+    if moveCoords then
+        state.coords = moveCoords
+        state.opened = false
+        state.nextReset = 0
+
+        TriggerClientEvent(
+            'enchanted_acres_loot_chests:updateLocation',
+            -1,
+            chestId,
+            moveCoords.x,
+            moveCoords.y,
+            moveCoords.z,
+            moveCoords.w,
+            false
+        )
+
+        notify(src, Config.Notifications.Opened .. ' The chest has moved to a new location.')
+        sendDiscordLog(
+            src,
+            chestId,
+            chest,
+            true,
+            ('All configured loot was successfully delivered. Chest moved to %.2f, %.2f, %.2f.'):format(
+                moveCoords.x, moveCoords.y, moveCoords.z
+            )
+        )
+
+        debugPrint(('Player %s opened chest %s. It moved to %.2f, %.2f, %.2f.'):format(
+            src, chestId, moveCoords.x, moveCoords.y, moveCoords.z
+        ))
+        return
+    end
+
+    -- Normal respawn behavior. If moveOnRespawn is enabled, the chest changes
+    -- to another preset location when the respawn timer finishes.
     local respawnMinutes = tonumber(chest.respawnMinutes or 0) or 0
 
     if respawnMinutes > 0 then
         state.nextReset = os.time() + (respawnMinutes * 60)
 
         SetTimeout(respawnMinutes * 60 * 1000, function()
-            -- Make sure the chest definition still exists.
             if Config.Chests[chestId] and ChestState[chestId] then
-                ChestState[chestId].opened = false
-                ChestState[chestId].nextReset = 0
+                local respawnState = ChestState[chestId]
+                local respawnMove = chest.moveOnRespawn and chooseMoveLocation(chestId, chest) or nil
 
-                TriggerClientEvent('enchanted_acres_loot_chests:updateOpened', -1, chestId, false)
+                if respawnMove then
+                    respawnState.coords = respawnMove
+                    respawnState.opened = false
+                    respawnState.nextReset = 0
 
-                debugPrint(('Chest %s has respawned.'):format(chestId))
+                    TriggerClientEvent(
+                        'enchanted_acres_loot_chests:updateLocation',
+                        -1,
+                        chestId,
+                        respawnMove.x,
+                        respawnMove.y,
+                        respawnMove.z,
+                        respawnMove.w,
+                        false
+                    )
+
+                    debugPrint(('Chest %s respawned and moved to %.2f, %.2f, %.2f.'):format(
+                        chestId, respawnMove.x, respawnMove.y, respawnMove.z
+                    ))
+                else
+                    respawnState.opened = false
+                    respawnState.nextReset = 0
+                    TriggerClientEvent('enchanted_acres_loot_chests:updateOpened', -1, chestId, false)
+                    debugPrint(('Chest %s has respawned.'):format(chestId))
+                end
             end
         end)
     else
         state.nextReset = 0
     end
 
+    local currentCoords = getCurrentCoords(chestId, chest)
     TriggerClientEvent('enchanted_acres_loot_chests:updateOpened', -1, chestId, true)
-    TriggerClientEvent('enchanted_acres_loot_chests:playOpen', src, chest.coords.x, chest.coords.y, chest.coords.z)
+    TriggerClientEvent(
+        'enchanted_acres_loot_chests:playOpen',
+        src,
+        currentCoords.x,
+        currentCoords.y,
+        currentCoords.z
+    )
 
     notify(src, Config.Notifications.Opened)
     sendDiscordLog(src, chestId, chest, true, 'All configured loot was successfully delivered.')
-
     debugPrint(('Player %s opened chest %s.'):format(src, chestId))
 end)
 
@@ -352,12 +460,24 @@ RegisterCommand('chestreset', function(src, args)
         return
     end
 
+    local currentCoords = getCurrentCoords(chestId, Config.Chests[chestId])
+
     ChestState[chestId] = {
         opened = false,
         nextReset = 0,
+        coords = currentCoords,
     }
 
-    TriggerClientEvent('enchanted_acres_loot_chests:updateOpened', -1, chestId, false)
+    TriggerClientEvent(
+        'enchanted_acres_loot_chests:updateLocation',
+        -1,
+        chestId,
+        currentCoords.x,
+        currentCoords.y,
+        currentCoords.z,
+        currentCoords.w,
+        false
+    )
 
     if src ~= 0 then
         notify(src, ('Chest "%s" has been reset.'):format(chestId))
@@ -378,10 +498,11 @@ RegisterCommand('chestreload', function(src)
 
     ChestState = {}
 
-    for id in pairs(Config.Chests) do
+    for id, chest in pairs(Config.Chests) do
         ChestState[id] = {
             opened = false,
             nextReset = 0,
+            coords = chest.coords,
         }
     end
 
