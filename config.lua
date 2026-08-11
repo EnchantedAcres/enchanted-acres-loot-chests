@@ -53,6 +53,15 @@ Config.Notifications = {
 --   consumeKey
 --   loot
 --   respawnMinutes
+--   moveOnLoot
+--   moveOnRespawn
+--   moveLocations
+--
+-- moveOnLoot = true makes the chest move immediately after a successful loot.
+-- moveOnRespawn = true makes the chest move when its respawn timer finishes.
+-- Set moveOnLoot = false and moveOnRespawn = true to move only on respawn.
+-- moveLocations is a preset list of Vector4 locations the chest can move to.
+-- The current location is excluded whenever another location is available.
 --
 -- respawnMinutes = 0 means the chest never automatically resets.
 --========================================================--
@@ -62,6 +71,20 @@ Config.Chests = {
     -- Example Chest #1
     ['Chest_1'] = {
         coords = vector4(-278.45, 804.12, 119.38, 92.50),
+
+        -- Move this chest to another preset location after it is found.
+        moveOnLoot = false,
+
+        -- Move this chest when its respawn timer finishes.
+        moveOnRespawn = true,
+
+        -- Preset locations for this chest.
+        moveLocations = {
+            vector4(-300.25, 820.10, 119.40, 15.00),
+            vector4(-245.80, 790.65, 119.25, 180.00),
+            vector4(-325.10, 775.40, 120.05, 270.00),
+            vector4(-260.45, 850.20, 118.90, 90.00),
+        },
 
         -- Chest prop
         prop = 'p_chest01x',
@@ -74,14 +97,14 @@ Config.Chests = {
 
         -- Loot ONLY for this chest
         loot = {
-            { item = 'bread', amount = 2 },
+            { item = 'Bread', amount = 2 },
             { item = 'revival_syringe', amount = 1 },
             { item = 'goldnugget', amount = 3 },
         },
 
         -- Minutes before this chest can be looted again.
         -- 0 = one-time chest until the resource/server is restarted.
-        respawnMinutes = 1440, -- 24 hours
+        respawnMinutes = 120, -- 2 hours
     },
 
     -- Example Chest #2
@@ -96,11 +119,11 @@ Config.Chests = {
 
         loot = {
             { item = 'red_sage', amount = 5 },
-            { item = 'feather', amount = 3 },
+            { item = 'Feather', amount = 3 },
             { item = 'magic_powder', amount = 2 },
         },
 
-        respawnMinutes = 60,
+        respawnMinutes = 120,
     },
 
     -- Example Chest #3
@@ -119,7 +142,7 @@ Config.Chests = {
             { item = 'water', amount = 5 },
         },
 
-        respawnMinutes = 0,
+        respawnMinutes = 120,
     },
 
     -- Add as many chests as you want:

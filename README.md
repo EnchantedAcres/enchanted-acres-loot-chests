@@ -1,6 +1,6 @@
 # Enchanted Acres Configurable Chest System v2
 
-A Fully Customizable Loot Chest System For VORP 
+A Fully Customizable Loot Chest System For VORP
 Every chest is configured directly in `config.lua`.
 
 ## No SQL Required
@@ -37,17 +37,17 @@ Use a Vector4:
 ```lua
 ['Chest_1'] = {
     coords = vector4(-278.45, 804.12, 119.38, 92.50),
-    prop = 'p_chest01x', -- You can Change the Prop for Each Chest
-    key = 'Chest1_key', -- You can Configure any item in your Database to use as a Key
-    consumeKey = true, -- Set to False if you wish to let the player keep the Key, This is also Configureable per chest
+    prop = 'p_chest01x',
+    key = 'Chest1_key',
+    consumeKey = true,
 
-    loot = {                                      -- You can Change the Loot Table Per Chest Just make sure the "item" matches the item name in your Database
+    loot = {
         { item = 'Bread', amount = 2 },
         { item = 'revival_syringe', amount = 1 },
         { item = 'goldnugget', amount = 3 },
     },
 
-    respawnMinutes = 120, -- This is in Minutes   ("0" ) 
+    respawnMinutes = 120, --2 hours 
 },
 ```
 
@@ -59,7 +59,7 @@ X, Y, Z, Heading
 
 ## Different Key Per Chest
 
-Every chest has its own `key`: Which you can configure any item in your Vorp Inventory as a Key Item
+Every chest has its own `key`:
 
 ```lua
 key = 'Chest1_key'
@@ -79,11 +79,11 @@ key = 'Chest3_key'
 
 ## Different Loot Per Chest
 
-Every chest has its own `loot` table: You can Fully Configure the Loot Table for each Chest
+Every chest has its own `loot` table:
 
 ```lua
 loot = {
-    { item = 'bread', amount = 2 },
+    { item = 'silver_nugget', amount = 2 },
     { item = 'goldnugget', amount = 5 },
 },
 ```
@@ -152,6 +152,25 @@ Simply add another entry:
 
 You can add as many as you want.
 
+
+### Move on respawn only
+
+To keep the chest at its current location after it is looted, then move it when the respawn timer finishes:
+
+```lua
+moveOnLoot = false,
+moveOnRespawn = true,
+respawnMinutes = 1440,
+moveLocations = {
+    vector4(-300.25, 820.10, 119.40, 15.00),
+    vector4(-245.80, 790.65, 119.25, 180.00),
+    vector4(-325.10, 775.40, 120.05, 270.00),
+    vector4(-260.45, 850.20, 118.90, 90.00),
+},
+```
+
+The chest stays unavailable for the full respawn period. When the timer completes, it becomes available again and moves to a different preset location when possible.
+
 ## Admin Commands
 
 Reset one chest:
@@ -205,3 +224,32 @@ Config.Webhook = {
 ```
 
 Logs include player name, server ID, chest ID, required key, key consumption, configured loot, and whether loot was successfully received. Failed attempts include the reason.
+
+
+## Moving Chests
+
+A chest can automatically move to a random location from a preset list after it is successfully found and looted, or when its respawn timer finishes.
+
+```lua
+moveOnLoot = true,
+moveOnRespawn = false,
+
+moveLocations = {
+    vector4(-300.25, 820.10, 119.40, 15.00),
+    vector4(-245.80, 790.65, 119.25, 180.00),
+    vector4(-325.10, 775.40, 120.05, 270.00),
+},
+```
+
+The current location is excluded whenever another configured location is available.
+
+When the chest moves:
+- The old prop is removed for all players.
+- The prop appears at the new location for all players.
+- The chest is immediately available at the new location.
+- `respawnMinutes` is skipped for that successful loot.
+- Server-side distance validation uses the chest's current location.
+
+If `moveOnLoot = false`, or `moveLocations` is empty, the original `respawnMinutes` behavior remains unchanged.
+
+The `/chestreload` command resets moved chests back to their original `coords` from `config.lua`.
