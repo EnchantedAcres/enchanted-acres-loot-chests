@@ -157,7 +157,7 @@ You can add as many as you want.
 Reset one chest:
 
 ```text
-/chestreset bloodmoon_cache
+/chestreset Chest_1
 ```
 
 Reload all configured chest props:
