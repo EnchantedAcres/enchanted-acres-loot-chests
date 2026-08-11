@@ -17,7 +17,7 @@ Chest locations, props, keys, loot, key consumption, and respawn timers are all 
 Put the folder in your resources directory:
 
 ```text
-resources/enchanted_acres_loot_chests
+resources/[deadtrails]/enchanted_acres_loot_chests
 ```
 
 Then add:
@@ -71,24 +71,34 @@ Another chest:
 key = 'Chest2_key'
 ```
 
-Another:
-
-```lua
-key = 'Chest3_key'
-```
-
 ## Different Loot Per Chest
 
 Every chest has its own `loot` table:
 
 ```lua
 loot = {
-    { item = 'silver_nugget', amount = 2 },
-    { item = 'goldnugget', amount = 5 },
+    { item = 'bread', amount = { min = 1, max = 4 } },
+    { item = 'goldnugget', amount = { min = 2, max = 6 } },
 },
 ```
 
 There is no shared default loot table.
+
+### Random Loot Amounts
+
+Loot amounts can be randomized independently for every item in every chest. Use a fixed number if you always want the same amount:
+
+```lua
+{ item = 'bread', amount = 5 },
+```
+
+Or use a minimum and maximum for a random roll each time the chest is successfully opened:
+
+```lua
+{ item = 'bread', amount = { min = 2, max = 8 } },
+```
+
+The roll is inclusive, so the example can award 2, 3, 4, 5, 6, 7, or 8 bread. Each loot entry rolls separately. The server rolls the amounts first, checks inventory capacity for those exact amounts, then awards those exact amounts. Discord logs show the actual amounts awarded.
 
 ## Consume Key
 
@@ -152,6 +162,34 @@ Simply add another entry:
 
 You can add as many as you want.
 
+## Moving Chests
+
+A chest can automatically move to a random location from a preset list after it is successfully found and looted, or when its respawn timer finishes.
+
+```lua
+moveOnLoot = true,
+moveOnRespawn = false,
+
+moveLocations = {
+    vector4(-300.25, 820.10, 119.40, 15.00),
+    vector4(-245.80, 790.65, 119.25, 180.00),
+    vector4(-325.10, 775.40, 120.05, 270.00),
+},
+```
+
+The current location is excluded whenever another configured location is available.
+
+When the chest moves:
+- The old prop is removed for all players.
+- The prop appears at the new location for all players.
+- The chest is immediately available at the new location.
+- `respawnMinutes` is skipped for that successful loot.
+- Server-side distance validation uses the chest's current location.
+
+If `moveOnLoot = false`, or `moveLocations` is empty, the original `respawnMinutes` behavior remains unchanged.
+
+The `/chestreload` command resets moved chests back to their original `coords` from `config.lua`.
+
 
 ### Move on respawn only
 
@@ -204,7 +242,8 @@ The item names in `key` and `loot` must match the item names registered in your 
 - The server checks the player is actually near the chest.
 - The server checks the configured key.
 - The key can optionally be consumed.
-- Loot is checked against inventory capacity before rewards are given.
+- Randomized loot amounts are rolled server-side before rewards are given.
+- Loot is checked against inventory capacity using the exact rolled amounts.
 - The chest becomes empty after successful looting.
 - A configured respawn timer can make it available again.
 - All chest definitions are controlled from `config.lua`.
@@ -226,30 +265,3 @@ Config.Webhook = {
 Logs include player name, server ID, chest ID, required key, key consumption, configured loot, and whether loot was successfully received. Failed attempts include the reason.
 
 
-## Moving Chests
-
-A chest can automatically move to a random location from a preset list after it is successfully found and looted, or when its respawn timer finishes.
-
-```lua
-moveOnLoot = true,
-moveOnRespawn = false,
-
-moveLocations = {
-    vector4(-300.25, 820.10, 119.40, 15.00),
-    vector4(-245.80, 790.65, 119.25, 180.00),
-    vector4(-325.10, 775.40, 120.05, 270.00),
-},
-```
-
-The current location is excluded whenever another configured location is available.
-
-When the chest moves:
-- The old prop is removed for all players.
-- The prop appears at the new location for all players.
-- The chest is immediately available at the new location.
-- `respawnMinutes` is skipped for that successful loot.
-- Server-side distance validation uses the chest's current location.
-
-If `moveOnLoot = false`, or `moveLocations` is empty, the original `respawnMinutes` behavior remains unchanged.
-
-The `/chestreload` command resets moved chests back to their original `coords` from `config.lua`.
